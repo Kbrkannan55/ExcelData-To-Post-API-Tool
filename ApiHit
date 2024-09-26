@@ -1,0 +1,73 @@
+const XLSX = require('xlsx');
+const axios = require('axios');
+const https = require('https');
+const moment = require('moment');
+
+const excelFilePath = "C:/Users/BoopathirajaKannan/Downloads/VisionData.csv";
+const workbook = XLSX.readFile(excelFilePath);
+const sheetName = workbook.SheetNames[0];
+const sheetData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+
+const agent = new https.Agent({
+    rejectUnauthorized: false
+});
+
+async function hitApiForProducts(products) {
+    const url = 'https://myecpbeta.aafes.com/MYECP/api/v2/registration/create-test-profile';
+
+    for (let i = 0; i < products.length; i++) {
+        const data = products[i];
+        
+        let rawDOB = data.DOB;
+
+        if (typeof rawDOB === 'number') {
+            rawDOB = moment(new Date((rawDOB - 25569) * 86400 * 1000)).format("DD-MM-YYYY");
+        } else if (typeof rawDOB === 'string') {
+            rawDOB = rawDOB.trim();
+        } else {
+            continue;
+        }
+
+        const dob = moment(rawDOB, "DD-MM-YYYY", true);
+        
+        if (dob.isValid()) {
+            const DOB_Day = dob.date().toString();
+            const DOB_Month = (dob.month() + 1).toString();
+            const DOB_Year = dob.year().toString();
+
+            const requestBody = {
+                CardNumber: data.CARDNUMBER.toString(),
+                CID: data.CUSTID.toString(),
+                SSN: data.SSN.toString(),
+                DOB_Day: DOB_Day,
+                DOB_Month: DOB_Month,
+                DOB_Year: DOB_Year,
+                LastName: data.LAST_NAME.split(" ").join(""),
+                CVV: data.CVV,
+                Exp_Date: data.EXPDATE,
+                EmailAddress: data.UserName.concat("@gmail.com"),
+                UserName: data.UserName,
+                Password: "Test@1234",
+                ConfirmPassword: "Test@1234"
+            };
+
+            try {
+                const response = await axios.post(url, requestBody, {
+                    httpsAgent: agent,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apipsk':'HQrdBCj8nQLqLe733dDny3yHz83CwtsggjBeJU7x8qu5TcbM5hdPCL2rZTc8gDJA2YZrysDWnEMMVqdnQonvKTpT4JBDvxJqqsfsGvYukvxAbsyPKPQXTpNf6Ei8EJxn'
+                    }
+                });
+                console.log(`Request ${i + 1}: Success with status ${response.status}`);
+            } catch (error) {
+                console.log(`Request ${i + 1}: Failed with error ${error.message}`);
+                console.log(requestBody);
+            }
+        } else {
+            console.log(`Request ${i + 1}: Invalid DOB ${rawDOB}`);
+        }
+    }
+}
+
+hitApiForProducts(sheetData);
